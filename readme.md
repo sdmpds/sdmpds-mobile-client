@@ -1,7 +1,7 @@
 # Mobile client for MMS application built with React Native
 
-![img](https://imgur.com/1rDc6lI)
-![img](https://imgur.com/6n3Yqrh)
+![img](https://i.imgur.com/1rDc6lI.jpg)
+![img](https://i.imgur.com/6n3Yqrh.png)
 ![img](https://imgur.com/7gWdeaG)
 ![img](https://imgur.com/3xJIfCn)
 ![img](https://imgur.com/fQjIeBf)
