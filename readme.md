@@ -1,6 +1,6 @@
 # Mobile client for MMS application built with React Native
 
-<img src="hhttps://i.imgur.com/1rDc6lI.jpg" width="30%" height="30%">
+<img src="hhttps://i.imgur.com/1rDc6lI.jpg" width=30% height=30%>
 ![img size](https://i.imgur.com/1rDc6lI.jpg){:height="50%" width="50%"}
 ![img](https://i.imgur.com/6n3Yqrh.png | width=100)
 ![img](https://i.imgur.com/7gWdeaG.png | width=100)
