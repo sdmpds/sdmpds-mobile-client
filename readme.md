@@ -1,10 +1,10 @@
 # Mobile client for MMS application built with React Native
-![img|20%](https://i.imgur.com/1rDc6lI.jpg)
-![img|20%](https://i.imgur.com/6n3Yqrh.png | width=100)
-![img|20%](https://i.imgur.com/7gWdeaG.png | width=100)
-![img|20%](https://i.imgur.com/3xJIfCn.png | width=100)
-![img|20%](https://i.imgur.com/fQjIeBf.png | width=100)
-![img|20%](https://i.imgur.com/R0R8UDc.png | width=100)
+![img|200x200,10%](https://i.imgur.com/1rDc6lI.jpg)
+![img|10%](https://i.imgur.com/6n3Yqrh.png)
+![img|10%](https://i.imgur.com/7gWdeaG.png)
+![img|10%](https://i.imgur.com/3xJIfCn.png)
+![img|10%](https://i.imgur.com/fQjIeBf.png)
+![img|10%](https://i.imgur.com/R0R8UDc.png)
 
 ## Getting Started
 
