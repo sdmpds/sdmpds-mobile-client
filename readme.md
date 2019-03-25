@@ -1,0 +1,43 @@
+# Mobile client for MMS application built with React Native
+
+![img](https://imgur.com/1rDc6lI)
+![img](https://imgur.com/6n3Yqrh)
+![img](https://imgur.com/7gWdeaG)
+![img](https://imgur.com/3xJIfCn)
+![img](https://imgur.com/fQjIeBf)
+![img](https://imgur.com/R0R8UDc)
+
+## Getting Started
+
+Clone Repo
+
+````
+https://github.com/sdmms/sdmms-mobile-client.git
+````
+
+Install dependecies for react native
+
+````
+cd sdmms-mobile-client
+npm install
+````
+
+## React Native Requirements and Getting Started
+
+<a href="https://facebook.github.io/react-native/docs/getting-started.html" target="_blank">Requirements and Getting Started</a>
+
+<a href="https://facebook.github.io/react-native/docs/android-setup.html" target="_blank">Android Setup</a>
+
+## IOS
+
+````
+Open sdmms-mobile-client.xcodeproj in XCode
+````
+
+## Android
+
+````
+navigate to sdmms-mobile-client
+react-native run-android
+
+````
