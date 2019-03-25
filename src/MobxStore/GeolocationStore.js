@@ -1,5 +1,6 @@
-import {action, observable} from "mobx";
+import {action, observable, autorun} from "mobx";
 import {Dimensions, PermissionsAndroid} from "react-native";
+import pinStore from "./PinStore";
 
 const {width, height} = Dimensions.get('window');
 
@@ -19,7 +20,8 @@ class GeolocationStore {
             latitudeDelta: 0,
             longitudeDelta: 0,
         }
-    }
+    };
+
 
     @action setGeolocation = (data) => {
         this.geolocation.actualPosition = data;
@@ -45,35 +47,11 @@ class GeolocationStore {
             {enableHighAccuracy: false, timeout: 20000});
     }
 
-    //TODO: Its could be important, but works well without that ;/
-    // requestForLocalization = async () => {
-    //     try {
-    //         const granted = await PermissionsAndroid.request(
-    //             PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-    //             {
-    //                 'title': 'MMS',
-    //                 'message': 'MMS access to your location '
-    //             }
-    //         );
-    //
-    //         console.log("im here")
-    //
-    //         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-    //             //TODO: Debug alert - remove before relase!
-    //             console.log("You can use the location")
-    //             alert("You can use the location");
-    //             //this.getGeolocation().catch(err => console.log(err))
-    //         } else {
-    //             //TODO: Debug alert - remove before relase!
-    //             console.log("location permission denied")
-    //             alert("Location permission denied");
-    //         }
-    //     } catch (err) {
-    //         console.warn(err)
-    //     }
-    // };
-
 }
+
+autorun(() => {
+    //console.log(geolocationStore.geolocation.actualPosition)
+}, { delay: 300 });
 
 let geolocationStore = new GeolocationStore();
 export default geolocationStore;

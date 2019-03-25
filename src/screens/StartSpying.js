@@ -1,5 +1,5 @@
 import React, {Component} from 'react';
-import {CameraRoll, Platform, StyleSheet, TouchableHighlight} from 'react-native';
+import {CameraRoll, Platform, StyleSheet, TouchableHighlight, Alert} from 'react-native';
 import {Container, Fab, Icon, Text, View, CheckBox} from "native-base";
 import ButtonWithData from "../components/ButtonWithData";
 import {RNCamera} from "react-native-camera";
@@ -9,7 +9,10 @@ import {global} from 'src/Styles/GlobalStyles'
 import Dialog, {DialogContent} from 'react-native-popup-dialog';
 import MapView, {Marker, PROVIDER_GOOGLE} from 'react-native-maps';
 import geolocationStore from "../MobxStore/GeolocationStore";
-
+import pinStore, {AskPin, Pin} from '../MobxStore/PinStore'
+import * as R from 'ramda'
+import userStore from "../MobxStore/UserStore";
+import Camera from "../components/Camera";
 
 @observer export default class StartSpying extends Component {
     constructor(props) {
@@ -18,10 +21,9 @@ import geolocationStore from "../MobxStore/GeolocationStore";
             setInterval: false,
             intervalTime: 1000,
             visible: false,
+            region: {}
         }
     }
-    camera = true;
-    intervalID = 0;
 
     static navigationOptions = {
         drawerLabel: 'Start Spying!',
@@ -34,101 +36,105 @@ import geolocationStore from "../MobxStore/GeolocationStore";
         ),
     };
 
-    onIntervalChange(value) {
-        if (value === 0) {
-            cameraStore.setInterval(false);
-            cameraStore.setIntervalTime(value)
-        }
-        else {
-            cameraStore.setInterval(true);
-            cameraStore.setIntervalTime(value)
-        }
-    }
-
-    takePicture = async () => {
-        if (this.camera) {
-            const options = {quality: 0.5, base64: true};
-            const data = await this.camera.takePictureAsync(options);
-            await CameraRoll.saveToCameraRoll(data.uri);
-            cameraStore.setStatistics(data.uri)
-        }
+    picReturned = (data) => {
+        cameraStore.setStatistics(data.uri);
+        const pin = new Pin(this.state.region, userStore.name, userStore.id, "green", data.uri);
+        pinStore.pins.push(pin);
+        console.log(pinStore.pins)
     };
 
-    tmp = () => {
-        console.log("Pstrykam fotki z interwałem", cameraStore.cameraAtributes.intervalTime)
+    componentWillMount() {
+        this.setState({region: geolocationStore.geolocation.actualPosition})
+    }
+
+
+    _userLocationChange(object) {
+        console.log({...this.state.region, latitude: object.latitude, longitude: object.longitude})
+        this.setState({region: {...this.state.region, latitude: object.latitude, longitude: object.longitude}})
+    }
+
+    _askPin = (coordinates) => {
+        Alert.alert(
+            "Confirm!", "Do you want to ask for help?",
+            [
+                {
+                    text: 'Yeeaah', onPress: () => {
+                        const pin = new AskPin({
+                            ...coordinates, latitudeDelta: 0,
+                            longitudeDelta: 0
+                        });
+                        pinStore.askPins.push(pin);
+                    }
+                },
+                {
+                    text: 'Nope',
+                    style: 'cancel',
+                },
+            ],
+        )
     };
 
-
-    componentWillUpdate() {
-        let {interval, intervalTime} = cameraStore.cameraAtributes;
-        if (interval) {
-            if (this.intervalID) {
-                clearInterval(this.intervalID);
-                if (Platform.OS === 'ios') {
-                    this.intervalID = setInterval(this.tmp, intervalTime)
-                }
-                else {
-                    this.intervalID = setInterval(this.takePicture.bind(this), intervalTime)
-                }
-            }
-            else {
-                if (Platform.OS === 'ios') {
-                    this.intervalID = setInterval(this.tmp, intervalTime)
-                }
-                else {
-                    this.intervalID = setInterval(this.takePicture.bind(this), intervalTime)
-                }
-            }
-        }
-        else {
-            clearInterval(this.intervalID)
-        }
-    }
 
     render() {
-        let {intervalTime} = cameraStore.cameraAtributes;
-
         return (
             <Container style={{backgroundColor: 'black'}}>
                 <View style={{flex: 0.5}}>
-                    <RNCamera
-                        ref={ref => {
-                            this.camera = ref;
-                        }}
-                        style={styles.preview}
-                        type={RNCamera.Constants.Type.back}
-                        flashMode={cameraStore.cameraAtributes.flash.mode}
-                        permissionDialogTitle={'Permission to use camera'}
-                        permissionDialogMessage={'We need your permission to use your camera phone'}
+                    <Camera
+                        picReturned={this.picReturned}
                     />
 
                 </View>
-                <TouchableHighlight
-                    onPress={this.takePicture.bind(this)}
-                    style={styles.capture}
-
-                >
-                    <Icon
-                        style={{color: 'white'}}
-                        name={'circle'}
-                        type={'Entypo'}
-                    />
-                </TouchableHighlight>
-
-
                 <View style={{flex: 0.5}}>
                     <MapView
-                        provider={PROVIDER_GOOGLE} // remove if not using Google Maps
+                        provider={"google"}
                         style={styles.map}
-                        initialRegion={geolocationStore.geolocation.actualPosition}
+                        initialRegion={this.state.region}
+                        onUserLocationChange={(event) => this._userLocationChange({
+                            latitude: event.nativeEvent.coordinate.latitude,
+                            longitude: event.nativeEvent.coordinate.longitude
+                        })}
+                        showsUserLocation={true}
+                        followsUserLocation={true}
+                        loadingEnabled={true}
+                        onLongPress={(event) => this._askPin(event.nativeEvent.coordinate)}
                     >
                         {
-                            geolocationStore.geolocation.fetched === true ?
-                                <Marker
-                                    coordinate={geolocationStore.geolocation.actualPosition}
-                                />
+                            pinStore.fetched === true ?
+                                R.map((pin, index) =>
+                                        <Marker
+                                            key={index}
+                                            onPress={() =>
+                                                Alert.alert(
+                                                    "Informations",
+                                                    "Date:" + pin.time.toLocaleDateString("en-US", {
+                                                        weekday: 'long',
+                                                        year: 'numeric',
+                                                        month: 'long',
+                                                        day: 'numeric',
+                                                        hour: "2-digit",
+                                                        minute: "2-digit",
+                                                        second: "2-digit"
+                                                    }) + '\n'
+                                                    + "Name: " + pin.name + '\n'
+                                                    + "Person recognized:" + pin.recognized)}
+                                            title={pin.name}
+                                            description={pin.recognized.toString()}
+                                            coordinate={pin.coordinates}
+                                            pinColor={pin.color}
+                                        />
+
+                                    , pinStore.pins
+                                )
                                 :
                                 null
+                        }
+                        {
+                            R.map((askPin, index) =>
+                                    <Marker key={index} coordinate={askPin.coordinates} title={"Can you Help?"} onPress={()=>{}}>
+                                        <Icon type="AntDesign" name={"question"}/>
+                                    </Marker>
+                                , pinStore.askPins
+                            )
                         }
                     </MapView>
                 </View>
@@ -141,56 +147,6 @@ import geolocationStore from "../MobxStore/GeolocationStore";
                 >
 
                     <DialogContent style={{flex: 0.7, minWidth: '90%'}}>
-                        <View style={global.container}>
-                            <ButtonWithData
-                                onValueChange={this.onIntervalChange}
-                                selected={intervalTime}
-                                description={"Set Interval Time:"}
-                                items={[
-                                    {
-                                        label: "Off",
-                                        value: 0
-                                    },
-                                    {
-                                        label: "1000ms",
-                                        value: 1000
-                                    },
-                                    {
-                                        label: "3000ms",
-                                        value: 3000
-                                    },
-                                    {
-                                        label: "5000ms",
-                                        value: 5000
-                                    },
-                                    {
-                                        label: "10 000ms",
-                                        value: 10000
-                                    }
-                                ]}
-                            />
-
-                            {
-                                //TODO: Flash button does not work correctly.
-                            }
-                            <ButtonWithData
-                                description={"Flash mode:"}
-                                items={
-                                    [
-                                        {
-                                            label: "Off",
-                                            value: RNCamera.Constants.FlashMode.off
-                                        },
-                                        {
-                                            label: "On",
-                                            value: RNCamera.Constants.FlashMode.on
-                                        }
-                                    ]}
-                                onValueChange={() => cameraStore.setFlesh()}
-                                selected={cameraStore.cameraAtributes.flash.boolean}
-                            />
-
-                        </View>
                         <View style={global.container}>
                             <Text> Informations: </Text>
                             <Text>Photos taken: {cameraStore.counter}</Text>

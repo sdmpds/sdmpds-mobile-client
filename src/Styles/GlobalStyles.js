@@ -4,7 +4,7 @@ export const buttonColor = '#2B2B2B';
 
 export const global = StyleSheet.create({
     container: {
-        flex:1,
+        //flex:1,
         justifyContent: 'center',
         alignItems: 'center',
     },
