@@ -3,6 +3,8 @@ import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {RNCamera} from 'react-native-camera';
 import {Button, Icon} from 'native-base'
 import { withNavigationFocus } from "react-navigation";
+import FloatButton from "./FloatButton";
+import Loading from "./Loading";
 
 class Camera extends Component {
     state = {
@@ -40,6 +42,8 @@ class Camera extends Component {
                         permissionDialogTitle={'Permission to use camera'}
                         permissionDialogMessage={'We need your permission to use your camera phone'}
                         captureAudio={false}
+                        mirrorImage={true}
+                        fixOrientation={true}
                     />
                     <View style={{ flex: 0, flexDirection: 'row', justifyContent: 'center' }}>
                         <TouchableOpacity onPress={this.takePicture.bind(this)} style={styles.capture}>
@@ -60,7 +64,7 @@ class Camera extends Component {
     }
     takePicture = async () => {
         if (this.camera) {
-            const options = {quality: 0.5, base64: true};
+            const options = {quality: 0.5, base64: true, forceUpOrientation: true, fixOrientation: true};
             await this.camera.takePictureAsync(options)
                 .then(data => this.props.picReturned(data));
         }
@@ -101,7 +105,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         alignSelf: 'center',
         margin: 20,
-        left:0
+        right:0
     },
     icon: {
         fontSize: 45,

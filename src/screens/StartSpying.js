@@ -1,18 +1,21 @@
 import React, {Component} from 'react';
-import {CameraRoll, Platform, StyleSheet, TouchableHighlight, Alert} from 'react-native';
-import {Container, Fab, Icon, Text, View, CheckBox} from "native-base";
-import ButtonWithData from "../components/ButtonWithData";
-import {RNCamera} from "react-native-camera";
-import cameraStore from "../MobxStore/CameraStore";
+import {Alert, StyleSheet} from 'react-native';
+import {Container, Fab, Icon, Text, View} from "native-base";
+import cameraStore from "../stores/CameraStore";
 import {observer} from "mobx-react";
-import {global} from 'src/Styles/GlobalStyles'
+import {global} from 'src/styles/GlobalStyles'
 import Dialog, {DialogContent} from 'react-native-popup-dialog';
-import MapView, {Marker, PROVIDER_GOOGLE} from 'react-native-maps';
-import geolocationStore from "../MobxStore/GeolocationStore";
-import pinStore, {AskPin, Pin} from '../MobxStore/PinStore'
+import MapView, {Callout, Marker, PROVIDER_GOOGLE} from 'react-native-maps';
+import geolocationStore from "../stores/GeolocationStore";
+import pinStore from '../stores/PinStore'
+import NewMarker from 'src/models/NewMarker'
+import AskMarker from 'src/models/AskMarker'
 import * as R from 'ramda'
-import userStore from "../MobxStore/UserStore";
 import Camera from "../components/Camera";
+import moment from "moment"
+import Loading from "../components/Loading";
+import userStore from "../stores/UserStore";
+import ConnectionBar from 'src/components/ConnectionBar'
 
 @observer export default class StartSpying extends Component {
     constructor(props) {
@@ -21,7 +24,9 @@ import Camera from "../components/Camera";
             setInterval: false,
             intervalTime: 1000,
             visible: false,
-            region: {}
+            userPosition: {},
+            loading: true,
+            statusBar: false
         }
     }
 
@@ -36,136 +41,204 @@ import Camera from "../components/Camera";
         ),
     };
 
-    picReturned = (data) => {
+    _userLocationChange(object) {
+        this.setState({
+            userPosition: {
+                ...this.state.userPosition,
+                latitude: object.latitude,
+                longitude: object.longitude
+            }
+        })
+    }
+
+    _handleCenter = () => {
+        const {latitude, longitude, latitudeDelta, longitudeDelta} = this.state.userPosition;
+        this.map.animateToRegion({
+            latitude,
+            longitude,
+            latitudeDelta,
+            longitudeDelta
+        })
+    }
+
+    _picReturned = async (data) => {
+        const marker = new NewMarker(this.state.userPosition, data.base64);
+        pinStore.pendingMarkers.push(marker);
+        await pinStore.postMyMarker(marker);
         cameraStore.setStatistics(data.uri);
-        const pin = new Pin(this.state.region, userStore.name, userStore.id, "green", data.uri);
-        pinStore.pins.push(pin);
-        console.log(pinStore.pins)
     };
 
-    componentWillMount() {
-        this.setState({region: geolocationStore.geolocation.actualPosition})
-    }
-
-
-    _userLocationChange(object) {
-        console.log({...this.state.region, latitude: object.latitude, longitude: object.longitude})
-        this.setState({region: {...this.state.region, latitude: object.latitude, longitude: object.longitude}})
-    }
-
     _askPin = (coordinates) => {
+        const askmarker = new AskMarker({...coordinates, latitudeDelta: 0, longitudeDelta: 0}, 'Ask');
+        pinStore.askMarkers.push(askmarker);
         Alert.alert(
             "Confirm!", "Do you want to ask for help?",
             [
                 {
-                    text: 'Yeeaah', onPress: () => {
-                        const pin = new AskPin({
-                            ...coordinates, latitudeDelta: 0,
-                            longitudeDelta: 0
-                        });
-                        pinStore.askPins.push(pin);
+                    text: 'Yeeaah', onPress: async () => {
+                        await pinStore.postAskMarker(askmarker)
                     }
                 },
                 {
                     text: 'Nope',
                     style: 'cancel',
+                    onPress: () => pinStore.askMarkers.pop()
                 },
             ],
         )
     };
 
 
-    render() {
-        return (
-            <Container style={{backgroundColor: 'black'}}>
-                <View style={{flex: 0.5}}>
-                    <Camera
-                        picReturned={this.picReturned}
-                    />
 
-                </View>
-                <View style={{flex: 0.5}}>
-                    <MapView
-                        provider={"google"}
-                        style={styles.map}
-                        initialRegion={this.state.region}
-                        onUserLocationChange={(event) => this._userLocationChange({
-                            latitude: event.nativeEvent.coordinate.latitude,
-                            longitude: event.nativeEvent.coordinate.longitude
-                        })}
-                        showsUserLocation={true}
-                        followsUserLocation={true}
-                        loadingEnabled={true}
-                        onLongPress={(event) => this._askPin(event.nativeEvent.coordinate)}
-                    >
-                        {
-                            pinStore.fetched === true ?
-                                R.map((pin, index) =>
+    componentDidMount() {
+        setTimeout(() => this.setState({loading: false}), 400);
+        this.timer = setInterval(() => pinStore.getMarkers(), 5000)
+    }
+
+
+    componentWillMount() {
+        this.setState({userPosition: geolocationStore.geolocation.fetchedPosiotion})
+    }
+
+    render() {
+        if (!this.state.loading) {
+            return (
+                <Container style={{backgroundColor: 'black'}}>
+                    <View style={{flex: 0.5}}>
+                        <Camera
+                            picReturned={this._picReturned}
+                        />
+
+                    </View>
+                    <ConnectionBar/>
+                    <View style={{flex: 0.5}}>
+                        <MapView
+                            ref={map => {
+                                this.map = map
+                            }}
+                            provider={PROVIDER_GOOGLE}
+                            style={styles.map}
+                            initialRegion={this.state.userPosition}
+                            onUserLocationChange={(event) => this._userLocationChange({
+                                latitude: event.nativeEvent.coordinate.latitude,
+                                longitude: event.nativeEvent.coordinate.longitude
+                            })}
+                            userLocationAnnotationTitle={"You"}
+                            showsUserLocation={true}
+                            followsUserLocation={true}
+                            loadingEnabled={true}
+                            onLongPress={(event) => this._askPin(event.nativeEvent.coordinate)}
+                        >
+                            {
+                                R.map((marker, index) =>
                                         <Marker
                                             key={index}
-                                            onPress={() =>
+                                            title={marker.name}
+                                            description={"Recognized:" + '\n' + marker.date}
+                                            coordinate={marker.coordinates}
+                                            pinColor={R.identical(marker.deviceId, userStore.id) ? "green" : "red"}
+                                        >
+                                            <Callout onPress={() =>
                                                 Alert.alert(
                                                     "Informations",
-                                                    "Date:" + pin.time.toLocaleDateString("en-US", {
-                                                        weekday: 'long',
-                                                        year: 'numeric',
-                                                        month: 'long',
-                                                        day: 'numeric',
-                                                        hour: "2-digit",
-                                                        minute: "2-digit",
-                                                        second: "2-digit"
-                                                    }) + '\n'
-                                                    + "Name: " + pin.name + '\n'
-                                                    + "Person recognized:" + pin.recognized)}
-                                            title={pin.name}
-                                            description={pin.recognized.toString()}
-                                            coordinate={pin.coordinates}
-                                            pinColor={pin.color}
-                                        />
+                                                    "Date:" + moment(marker.date).fromNow() + '\n'
+                                                    + "Name: " + marker.name + '\n'
+                                                    + "Person recognized:" + marker.recognized)
+                                            }
+                                            >
+                                                <Text>Name: {marker.name}</Text>
+                                                <Text>Date: {moment(marker.date).fromNow()}</Text>
+                                                <Text>Recognized: {marker.recognized}</Text>
+                                            </Callout>
+                                        </Marker>
 
-                                    , pinStore.pins
+                                    , pinStore.receivedMarkers
                                 )
-                                :
-                                null
-                        }
-                        {
-                            R.map((askPin, index) =>
-                                    <Marker key={index} coordinate={askPin.coordinates} title={"Can you Help?"} onPress={()=>{}}>
-                                        <Icon type="AntDesign" name={"question"}/>
-                                    </Marker>
-                                , pinStore.askPins
-                            )
-                        }
-                    </MapView>
-                </View>
+                            }
+                            {
+                                R.map((marker, index) =>
+                                        <Marker
+                                            key={index}
+                                            title={marker.name}
+                                            description={"Date:" + marker.date}
+                                            coordinate={marker.coordinates}
+                                            pinColor={'orange'}
+                                        >
+                                            <Callout onPress={() =>
+                                                Alert.alert(
+                                                    "Informations",
+                                                    "Date:" + moment(marker.date).fromNow() + '\n'
+                                                    + "Name: " + marker.name + '\n')}
+                                            >
+                                                <Text>Name: {marker.name}</Text>
+                                                <Text>Date: {moment(marker.date).fromNow()}</Text>
+                                                <Text>Status: PENDING</Text>
+                                            </Callout>
+                                        </Marker>
 
-                <Dialog
-                    visible={this.state.visible}
-                    onTouchOutside={() => {
-                        this.setState({visible: false});
-                    }}
-                >
+                                    , pinStore.pendingMarkers
+                                )
+                            }
 
-                    <DialogContent style={{flex: 0.7, minWidth: '90%'}}>
-                        <View style={global.container}>
-                            <Text> Informations: </Text>
-                            <Text>Photos taken: {cameraStore.counter}</Text>
-                            <Text>URI: {cameraStore.statistics.uri}</Text>
-                        </View>
-                    </DialogContent>
-                </Dialog>
-                <Fab
-                    active={this.state.active}
-                    direction={'up'}
-                    style={global.button}
-                    position="bottomRight"
-                    onPress={() => this.setState({visible: true})}
-                >
-                    <Icon name="plus" type={'AntDesign'} color={'white'}/>
-                </Fab>
-            </Container>
-        );
+                            {
+                                R.map((askMarker, index) =>
+                                        <Marker key={index} coordinate={askMarker.coordinates} title={"Can you Help?"}
+                                                description={moment(askMarker.date).fromNow() + '\n' + 'Name: ' + askMarker.name}>
+                                            <Icon type="AntDesign" name={"question"}/>
+                                        </Marker>
+                                    , pinStore.askMarkers
+                                )
+                            }
+                        </MapView>
+                    </View>
+
+                    <Dialog
+                        visible={this.state.visible}
+                        onTouchOutside={() => {
+                            this.setState({visible: false});
+                        }}
+                    >
+
+                        <DialogContent style={{flex: 0.7, minWidth: '90%'}}>
+                            <View style={global.container}>
+                                <Text> Informations: </Text>
+                                <Text>Photos taken: {cameraStore.counter}</Text>
+                                <Text>URI: {cameraStore.statistics.uri}</Text>
+                            </View>
+                        </DialogContent>
+                    </Dialog>
+                    <Fab
+                        active={this.state.active}
+                        direction={'up'}
+                        style={[global.button, {bottom: 65}]}
+                        position="bottomRight"
+                        onPress={() => this._handleCenter()}
+                    >
+                        <Icon
+                            name="md-locate"
+                            type="Ionicons"
+                            style={{
+                                color: "white",
+                            }}
+                        />
+                    </Fab>
+                    <Fab
+                        active={this.state.active}
+                        direction={'up'}
+                        style={global.button}
+                        position="bottomRight"
+                        onPress={() => this.setState({visible: true})}
+                    >
+                        <Icon name="plus" type={'AntDesign'}/>
+                    </Fab>
+                </Container>
+            );
+        }
+        else {
+            return <Loading/>
+        }
     }
+
 }
 
 
