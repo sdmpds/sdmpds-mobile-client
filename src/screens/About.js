@@ -1,5 +1,5 @@
 import React, {Component} from 'react';
-import {global} from "../Styles/GlobalStyles";
+import {global} from "../styles/GlobalStyles";
 import {Container, Content, Icon, Text, View} from 'native-base'
 
 export default class About extends Component {

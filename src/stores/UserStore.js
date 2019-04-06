@@ -3,6 +3,7 @@ import {action, observable, autorun} from "mobx";
 class UserStore {
     @observable id;
     @observable name;
+    @observable connection;
 
     @action setId = (id) => {
         this.id = id
@@ -10,6 +11,10 @@ class UserStore {
 
     @action setName = (name) => {
         this.name = name
+    }
+
+    @action setConnection = (status) => {
+        this.connection = status
     }
 }
 

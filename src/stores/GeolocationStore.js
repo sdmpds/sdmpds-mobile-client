@@ -1,20 +1,16 @@
-import {action, observable, autorun} from "mobx";
-import {Dimensions, PermissionsAndroid} from "react-native";
-import pinStore from "./PinStore";
+import {action, autorun, observable} from "mobx";
+import {Dimensions} from "react-native";
 
 const {width, height} = Dimensions.get('window');
-
-const SCREEN_HEIGHT = height;
-const SCREEN_WIDTH = width;
 const ASPECT_RATIO = width / height;
-const LATITUDE_DELTA = 0.0922
+const LATITUDE_DELTA = 0.09;
 const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
 
 class GeolocationStore {
 
     @observable geolocation = {
         fetched: false,
-        actualPosition: {
+        fetchedPosiotion: {
             latitude: 0,
             longitude: 0,
             latitudeDelta: 0,
@@ -24,7 +20,7 @@ class GeolocationStore {
 
 
     @action setGeolocation = (data) => {
-        this.geolocation.actualPosition = data;
+        this.geolocation.fetchedPosiotion = data;
     };
     @action
      async getGeolocation(){
@@ -50,7 +46,7 @@ class GeolocationStore {
 }
 
 autorun(() => {
-    //console.log(geolocationStore.geolocation.actualPosition)
+    console.log(geolocationStore.geolocation.actualPosition)
 }, { delay: 300 });
 
 let geolocationStore = new GeolocationStore();

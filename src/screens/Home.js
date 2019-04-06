@@ -1,11 +1,12 @@
 import React, {Component} from 'react';
-import {global} from "../Styles/GlobalStyles";
-import {ImageBackground, StatusBar} from 'react-native'
+import {global} from "../styles/GlobalStyles";
+import {ImageBackground, StatusBar, NetInfo} from 'react-native'
 import {Container, Icon, Input, View, Item, Button, Form, Label} from 'native-base'
-import geolocationStore from "../MobxStore/GeolocationStore";
+import geolocationStore from "../stores/GeolocationStore";
 import DeviceInfo from "react-native-device-info";
-import userStore from "../MobxStore/UserStore";
+import userStore from "../stores/UserStore";
 import wallpaper from 'src/images/wallpaper.jpg'
+import faker from 'faker'
 import Text from 'src/components/Text'
 
 export default class Home extends Component {
@@ -27,6 +28,7 @@ export default class Home extends Component {
 
     _onPress() {
         this.setState({disabled: true}, () => userStore.setName(this.state.name))
+        this.props.navigation.navigate("Spy")
     };
 
     componentWillMount() {
@@ -36,8 +38,10 @@ export default class Home extends Component {
 
 
     render() {
-        console.log(this.state)
+        const disabled = this.state.disabled;
         geolocationStore.getGeolocation();
+
+
         return (
             <Container>
                 <StatusBar hidden/>
@@ -56,22 +60,30 @@ export default class Home extends Component {
                     </View>
 
                     <View style={{justifyContent: 'flex-end', flex:0.8, marginBottom: '15%'}}>
-                        <Item style={{padding: 5}}>
-                            <Label style={{color: "white"}}>Your name:</Label>
+                        <Item style={{padding: 5}} success={disabled} error={!disabled}>
+                            <Label style={{color: "white"}}>Your codename:</Label>
                             <Input
                                 style={{color: "white"}}
                                 placeholder={"Type here..."}
                                 onChangeText={(name) => {
                                     this.setState({name})
                                 }}
-                                disabled={this.state.disabled}
+                                disabled={disabled}
+                                value={this.state.name}
                             />
+                            <Button
+                                onPress={() => this.setState({name: faker.name.firstName()+faker.random.number(99)})}
+                                transparent
+                                disabled={disabled}
+                            >
+                                <Text>Generate</Text>
+                            </Button>
                         </Item>
                         <Button
+                            transparent
                             full
-                            style={global.button}
                             onPress={() => this._onPress()}
-                            disabled={this.state.disabled}
+                            disabled={disabled}
                         >
                             <Text>OK</Text>
                         </Button>
