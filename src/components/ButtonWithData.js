@@ -8,7 +8,7 @@ export default class ButtonWithData extends Component {
 
     state = {
         selected: this.props.selected
-    }
+    };
 
     onSelect = (value) =>{
         this.setState({selected:value});

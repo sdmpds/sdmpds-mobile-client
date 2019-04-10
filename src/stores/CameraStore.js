@@ -1,6 +1,9 @@
 import {action, observable} from "mobx";
 import {RNCamera} from "react-native-camera";
 
+/**
+ * NOT USED
+ */
 class CameraStore {
     @observable cameraAtributes = {
         intervalTime: 0,

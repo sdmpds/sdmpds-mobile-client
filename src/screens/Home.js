@@ -1,11 +1,20 @@
 import React, {Component} from 'react';
-import {global} from "../Styles/GlobalStyles";
-import {StyleSheet} from 'react-native';
-import {Icon, Content, Container, View, Text, Button} from 'native-base'
-import MapView, {PROVIDER_GOOGLE} from "react-native-maps";
-import geolocationStore from "../MobxStore/GeolocationStore";
+import {global} from "../styles/GlobalStyles";
+import {ImageBackground, StatusBar} from 'react-native'
+import {Button, Container, Icon, Input, Item, Label, View} from 'native-base'
+import geolocationStore from "../stores/GeolocationStore";
+import DeviceInfo from "react-native-device-info";
+import userStore from "../stores/UserStore";
+import wallpaper from 'src/images/wallpaper.jpg'
+import faker from 'faker'
+import Text from 'src/components/Text'
 
 export default class Home extends Component {
+    state = {
+        name: "",
+        disabled: false
+    }
+
     static navigationOptions = {
         drawerLabel: 'Home',
         drawerIcon: ({tintColor}) => (
@@ -17,22 +26,71 @@ export default class Home extends Component {
         ),
     };
 
+    _onPress() {
+        this.setState({disabled: true}, () => userStore.setName(this.state.name))
+        this.props.navigation.navigate("Spy")
+    };
+
+    componentWillMount() {
+        const id = DeviceInfo.getUniqueID();
+        userStore.setId(id)
+    }
+
+
     render() {
-        // geolocationStore.requestForLocalization().then( result => geolocationStore.setGeolocation(result)).catch( err => err)
+        const disabled = this.state.disabled;
         geolocationStore.getGeolocation();
 
-        console.log(geolocationStore.geolocation)
+
         return (
-            <Content>
-                <Container>
-                    <View style={global.container}>
-                        <Text>Hello Agent 47</Text>
+            <Container>
+                <StatusBar hidden/>
+                <ImageBackground
+                    source={wallpaper}
+                    style={{width: '100%', height: '100%'}}
+                    resizeMode='cover'
+                >
+                    <View style={[global.container, {flex: 0.5}]}>
+                        <Text>Hello Agent</Text>
                         <Text> in </Text>
                         <Text>Simple, Distributed Mobile MonitoringSystem</Text>
-                        <Text>Swipe right to start!</Text>
+                        <Text>Enter name and swipe right to start!{'\n'}</Text>
+                        <Text>Your device unique id:</Text>
+                        <Text style={{fontWeight: 'bold'}}>{userStore.id}</Text>
                     </View>
-                </Container>
-            </Content>
+
+                    <View style={{justifyContent: 'flex-end', flex:0.8, marginBottom: '15%'}}>
+                        <Item style={{padding: 5}} success={disabled} error={!disabled}>
+                            <Label style={{color: "white"}}>Your codename:</Label>
+                            <Input
+                                style={{color: "white"}}
+                                placeholder={"Type here..."}
+                                onChangeText={(name) => {
+                                    this.setState({name})
+                                }}
+                                disabled={disabled}
+                                value={this.state.name}
+                            />
+                            <Button
+                                onPress={() => this.setState({name: faker.name.firstName()+faker.random.number(99)})}
+                                transparent
+                                disabled={disabled}
+                            >
+                                <Text>Generate</Text>
+                            </Button>
+                        </Item>
+                        <Button
+                            transparent
+                            full
+                            onPress={() => this._onPress()}
+                            disabled={disabled}
+                        >
+                            <Text>OK</Text>
+                        </Button>
+                    </View>
+                </ImageBackground>
+            </Container>
         );
     }
 };
+
