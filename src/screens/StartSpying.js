@@ -1,15 +1,21 @@
 import React, {Component} from 'react';
-import {CameraRoll, Platform, StyleSheet, TouchableHighlight} from 'react-native';
-import {Container, Fab, Icon, Text, View, CheckBox} from "native-base";
-import ButtonWithData from "../components/ButtonWithData";
-import {RNCamera} from "react-native-camera";
-import cameraStore from "../MobxStore/CameraStore";
+import {Alert, StyleSheet} from 'react-native';
+import {Container, Fab, Icon, Text, View} from "native-base";
+import cameraStore from "../stores/CameraStore";
 import {observer} from "mobx-react";
-import {global} from 'src/Styles/GlobalStyles'
+import {global} from 'src/styles/GlobalStyles'
 import Dialog, {DialogContent} from 'react-native-popup-dialog';
-import MapView, {Marker, PROVIDER_GOOGLE} from 'react-native-maps';
-import geolocationStore from "../MobxStore/GeolocationStore";
-
+import MapView, {Callout, Marker, PROVIDER_GOOGLE} from 'react-native-maps';
+import geolocationStore from "../stores/GeolocationStore";
+import pinStore from '../stores/PinStore'
+import NewMarker from 'src/models/NewMarker'
+import AskMarker from 'src/models/AskMarker'
+import * as R from 'ramda'
+import Camera from "../components/Camera";
+import moment from "moment"
+import Loading from "../components/Loading";
+import userStore from "../stores/UserStore";
+import ConnectionBar from 'src/components/ConnectionBar'
 
 @observer export default class StartSpying extends Component {
     constructor(props) {
@@ -18,10 +24,11 @@ import geolocationStore from "../MobxStore/GeolocationStore";
             setInterval: false,
             intervalTime: 1000,
             visible: false,
+            userPosition: {},
+            loading: true,
+            statusBar: false
         }
     }
-    camera = true;
-    intervalID = 0;
 
     static navigationOptions = {
         drawerLabel: 'Start Spying!',
@@ -34,182 +41,206 @@ import geolocationStore from "../MobxStore/GeolocationStore";
         ),
     };
 
-    onIntervalChange(value) {
-        if (value === 0) {
-            cameraStore.setInterval(false);
-            cameraStore.setIntervalTime(value)
-        }
-        else {
-            cameraStore.setInterval(true);
-            cameraStore.setIntervalTime(value)
-        }
+    _userLocationChange(object) {
+        this.setState({
+            userPosition: {
+                ...this.state.userPosition,
+                latitude: object.latitude,
+                longitude: object.longitude
+            }
+        })
     }
 
-    takePicture = async () => {
-        if (this.camera) {
-            const options = {quality: 0.5, base64: true};
-            const data = await this.camera.takePictureAsync(options);
-            await CameraRoll.saveToCameraRoll(data.uri);
-            cameraStore.setStatistics(data.uri)
-        }
+    _handleCenter = () => {
+        const {latitude, longitude, latitudeDelta, longitudeDelta} = this.state.userPosition;
+        this.map.animateToRegion({
+            latitude,
+            longitude,
+            latitudeDelta,
+            longitudeDelta
+        })
+    }
+
+    _picReturned = async (data) => {
+        const marker = new NewMarker(this.state.userPosition, data.base64);
+        pinStore.pendingMarkers.push(marker);
+        await pinStore.postMyMarker(marker);
+        cameraStore.setStatistics(data.uri);
     };
 
-    tmp = () => {
-        console.log("Pstrykam fotki z interwałem", cameraStore.cameraAtributes.intervalTime)
+    _askPin = (coordinates) => {
+        const askmarker = new AskMarker({...coordinates, latitudeDelta: 0, longitudeDelta: 0}, 'Ask');
+        pinStore.askMarkers.push(askmarker);
+        Alert.alert(
+            "Confirm!", "Do you want to ask for help?",
+            [
+                {
+                    text: 'Yeeaah', onPress: async () => {
+                        await pinStore.postAskMarker(askmarker)
+                    }
+                },
+                {
+                    text: 'Nope',
+                    style: 'cancel',
+                    onPress: () => pinStore.askMarkers.pop()
+                },
+            ],
+        )
     };
 
 
-    componentWillUpdate() {
-        let {interval, intervalTime} = cameraStore.cameraAtributes;
-        if (interval) {
-            if (this.intervalID) {
-                clearInterval(this.intervalID);
-                if (Platform.OS === 'ios') {
-                    this.intervalID = setInterval(this.tmp, intervalTime)
-                }
-                else {
-                    this.intervalID = setInterval(this.takePicture.bind(this), intervalTime)
-                }
-            }
-            else {
-                if (Platform.OS === 'ios') {
-                    this.intervalID = setInterval(this.tmp, intervalTime)
-                }
-                else {
-                    this.intervalID = setInterval(this.takePicture.bind(this), intervalTime)
-                }
-            }
-        }
-        else {
-            clearInterval(this.intervalID)
-        }
+
+    componentDidMount() {
+        setTimeout(() => this.setState({loading: false}), 400);
+        this.timer = setInterval(() => pinStore.getMarkers(), 5000)
+    }
+
+
+    componentWillMount() {
+        this.setState({userPosition: geolocationStore.geolocation.fetchedPosiotion})
     }
 
     render() {
-        let {intervalTime} = cameraStore.cameraAtributes;
+        if (!this.state.loading) {
+            return (
+                <Container style={{backgroundColor: 'black'}}>
+                    <View style={{flex: 0.5}}>
+                        <Camera
+                            picReturned={this._picReturned}
+                        />
 
-        return (
-            <Container style={{backgroundColor: 'black'}}>
-                <View style={{flex: 0.5}}>
-                    <RNCamera
-                        ref={ref => {
-                            this.camera = ref;
-                        }}
-                        style={styles.preview}
-                        type={RNCamera.Constants.Type.back}
-                        flashMode={cameraStore.cameraAtributes.flash.mode}
-                        permissionDialogTitle={'Permission to use camera'}
-                        permissionDialogMessage={'We need your permission to use your camera phone'}
-                    />
+                    </View>
+                    <ConnectionBar/>
+                    <View style={{flex: 0.5}}>
+                        <MapView
+                            ref={map => {
+                                this.map = map
+                            }}
+                            provider={PROVIDER_GOOGLE}
+                            style={styles.map}
+                            initialRegion={this.state.userPosition}
+                            onUserLocationChange={(event) => this._userLocationChange({
+                                latitude: event.nativeEvent.coordinate.latitude,
+                                longitude: event.nativeEvent.coordinate.longitude
+                            })}
+                            userLocationAnnotationTitle={"You"}
+                            showsUserLocation={true}
+                            followsUserLocation={true}
+                            loadingEnabled={true}
+                            onLongPress={(event) => this._askPin(event.nativeEvent.coordinate)}
+                        >
+                            {
+                                R.map((marker, index) =>
+                                        <Marker
+                                            key={index}
+                                            title={marker.name}
+                                            description={"Recognized:" + '\n' + marker.date}
+                                            coordinate={marker.coordinates}
+                                            pinColor={R.identical(marker.deviceId, userStore.id) ? "green" : "red"}
+                                        >
+                                            <Callout onPress={() =>
+                                                Alert.alert(
+                                                    "Informations",
+                                                    "Date:" + moment(marker.date).fromNow() + '\n'
+                                                    + "Name: " + marker.name + '\n'
+                                                    + "Person recognized:" + marker.recognized)
+                                            }
+                                            >
+                                                <Text>Name: {marker.name}</Text>
+                                                <Text>Date: {moment(marker.date).fromNow()}</Text>
+                                                <Text>Recognized: {marker.recognized}</Text>
+                                            </Callout>
+                                        </Marker>
 
-                </View>
-                <TouchableHighlight
-                    onPress={this.takePicture.bind(this)}
-                    style={styles.capture}
+                                    , pinStore.receivedMarkers
+                                )
+                            }
+                            {
+                                R.map((marker, index) =>
+                                        <Marker
+                                            key={index}
+                                            title={marker.name}
+                                            description={"Date:" + marker.date}
+                                            coordinate={marker.coordinates}
+                                            pinColor={'orange'}
+                                        >
+                                            <Callout onPress={() =>
+                                                Alert.alert(
+                                                    "Informations",
+                                                    "Date:" + moment(marker.date).fromNow() + '\n'
+                                                    + "Name: " + marker.name + '\n')}
+                                            >
+                                                <Text>Name: {marker.name}</Text>
+                                                <Text>Date: {moment(marker.date).fromNow()}</Text>
+                                                <Text>Status: PENDING</Text>
+                                            </Callout>
+                                        </Marker>
 
-                >
-                    <Icon
-                        style={{color: 'white'}}
-                        name={'circle'}
-                        type={'Entypo'}
-                    />
-                </TouchableHighlight>
-
-
-                <View style={{flex: 0.5}}>
-                    <MapView
-                        provider={PROVIDER_GOOGLE} // remove if not using Google Maps
-                        style={styles.map}
-                        initialRegion={geolocationStore.geolocation.actualPosition}
-                    >
-                        {
-                            geolocationStore.geolocation.fetched === true ?
-                                <Marker
-                                    coordinate={geolocationStore.geolocation.actualPosition}
-                                />
-                                :
-                                null
-                        }
-                    </MapView>
-                </View>
-
-                <Dialog
-                    visible={this.state.visible}
-                    onTouchOutside={() => {
-                        this.setState({visible: false});
-                    }}
-                >
-
-                    <DialogContent style={{flex: 0.7, minWidth: '90%'}}>
-                        <View style={global.container}>
-                            <ButtonWithData
-                                onValueChange={this.onIntervalChange}
-                                selected={intervalTime}
-                                description={"Set Interval Time:"}
-                                items={[
-                                    {
-                                        label: "Off",
-                                        value: 0
-                                    },
-                                    {
-                                        label: "1000ms",
-                                        value: 1000
-                                    },
-                                    {
-                                        label: "3000ms",
-                                        value: 3000
-                                    },
-                                    {
-                                        label: "5000ms",
-                                        value: 5000
-                                    },
-                                    {
-                                        label: "10 000ms",
-                                        value: 10000
-                                    }
-                                ]}
-                            />
+                                    , pinStore.pendingMarkers
+                                )
+                            }
 
                             {
-                                //TODO: Flash button does not work correctly.
+                                R.map((askMarker, index) =>
+                                        <Marker key={index}
+                                                coordinate={askMarker.coordinates}
+                                                title={"Can you Help?"}
+                                                description={moment(askMarker.date).fromNow() + '\n' + 'Name: ' + askMarker.name}>
+                                            <Icon type="AntDesign" name={"question"}/>
+                                        </Marker>
+                                    , pinStore.askMarkers
+                                )
                             }
-                            <ButtonWithData
-                                description={"Flash mode:"}
-                                items={
-                                    [
-                                        {
-                                            label: "Off",
-                                            value: RNCamera.Constants.FlashMode.off
-                                        },
-                                        {
-                                            label: "On",
-                                            value: RNCamera.Constants.FlashMode.on
-                                        }
-                                    ]}
-                                onValueChange={() => cameraStore.setFlesh()}
-                                selected={cameraStore.cameraAtributes.flash.boolean}
-                            />
+                        </MapView>
+                    </View>
 
-                        </View>
-                        <View style={global.container}>
-                            <Text> Informations: </Text>
-                            <Text>Photos taken: {cameraStore.counter}</Text>
-                            <Text>URI: {cameraStore.statistics.uri}</Text>
-                        </View>
-                    </DialogContent>
-                </Dialog>
-                <Fab
-                    active={this.state.active}
-                    direction={'up'}
-                    style={global.button}
-                    position="bottomRight"
-                    onPress={() => this.setState({visible: true})}
-                >
-                    <Icon name="plus" type={'AntDesign'} color={'white'}/>
-                </Fab>
-            </Container>
-        );
+                    <Dialog
+                        visible={this.state.visible}
+                        onTouchOutside={() => {
+                            this.setState({visible: false});
+                        }}
+                    >
+
+                        <DialogContent style={{flex: 0.7, minWidth: '90%'}}>
+                            <View style={global.container}>
+                                <Text> Informations: </Text>
+                                <Text>Photos taken: {cameraStore.counter}</Text>
+                                <Text>URI: {cameraStore.statistics.uri}</Text>
+                            </View>
+                        </DialogContent>
+                    </Dialog>
+                    <Fab
+                        active={this.state.active}
+                        direction={'up'}
+                        style={[global.button, {bottom: 65}]}
+                        position="bottomRight"
+                        onPress={() => this._handleCenter()}
+                    >
+                        <Icon
+                            name="md-locate"
+                            type="Ionicons"
+                            style={{
+                                color: "white",
+                            }}
+                        />
+                    </Fab>
+                    <Fab
+                        active={this.state.active}
+                        direction={'up'}
+                        style={global.button}
+                        position="bottomRight"
+                        onPress={() => this.setState({visible: true})}
+                    >
+                        <Icon name="plus" type={'AntDesign'}/>
+                    </Fab>
+                </Container>
+            );
+        }
+        else {
+            return <Loading/>
+        }
     }
+
 }
 
 
