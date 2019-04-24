@@ -3,9 +3,9 @@ import axios from "axios";
 import {Alert} from 'react-native'
 import userStore from "./UserStore";
 
-const http = "http://192.168.43.221:5555";
+const http = "http://192.168.0.66:5555";
 //const http = "https://mmsnodeserver.herokuapp.com"
-//const http = "http://localhost:5555";
+// const http = "http://localhost:5555";
 const config = {
     headers: {
         'Content-Type': 'application/json',
@@ -47,8 +47,8 @@ class PinStore {
             })
     }
 
-    @action getMarkers = async () => {
-        await axios.get(`${http}/markers`)
+    @action getMarkers = async (period_of_time) => {
+        await axios.get(`${http}/markers`,{params:{time:period_of_time}})
             .then(res => {
                 if(res.status === 200 && userStore.connection !== 200) {
                     userStore.setConnection(res.status);

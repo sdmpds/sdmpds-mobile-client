@@ -1,6 +1,6 @@
 import React, {Component} from 'react';
 import {Alert, StyleSheet} from 'react-native';
-import {Container, Fab, Icon, Text, View} from "native-base";
+import {Container, Content, Fab, Icon, Text, View} from "native-base";
 import cameraStore from "../stores/CameraStore";
 import {observer} from "mobx-react";
 import {global} from 'src/styles/GlobalStyles'
@@ -16,18 +16,20 @@ import moment from "moment"
 import Loading from "../components/Loading";
 import userStore from "../stores/UserStore";
 import ConnectionBar from 'src/components/ConnectionBar'
+import ButtonWithData from "../components/ButtonWithData";
 
 @observer export default class StartSpying extends Component {
     constructor(props) {
         super(props);
         this.state = {
-            setInterval: false,
-            intervalTime: 1000,
+            period_of_time: 3,
             visible: false,
             userPosition: {},
+            prevUserPosition:{},
             loading: true,
-            statusBar: false
-        }
+            statusBar: false,
+            center: true
+        };
     }
 
     static navigationOptions = {
@@ -42,23 +44,40 @@ import ConnectionBar from 'src/components/ConnectionBar'
     };
 
     _userLocationChange(object) {
-        this.setState({
+        this.setState({prevUserPosition: this.state.userPosition}, () =>   this.setState({
             userPosition: {
                 ...this.state.userPosition,
                 latitude: object.latitude,
                 longitude: object.longitude
             }
-        })
+        }));
+        // this.map.animateToRegion(this.state.userPosition)
     }
 
-    _handleCenter = () => {
-        const {latitude, longitude, latitudeDelta, longitudeDelta} = this.state.userPosition;
-        this.map.animateToRegion({
-            latitude,
-            longitude,
-            latitudeDelta,
-            longitudeDelta
-        })
+    _getRotationAngle = (previousPosition, currentPosition) => {
+        const x1 = previousPosition.latitude;
+        const y1 = previousPosition.longitude;
+        const x2 = currentPosition.latitude;
+        const y2 = currentPosition.longitude;
+        const xDiff = x2 - x1;
+        const yDiff = y2 - y1;
+        return (Math.atan2(yDiff, xDiff) * 180.0) / Math.PI;
+    };
+
+    _handleCenter = (center) => {
+        if (center) {
+            this.setState({center: false});
+            this.map.animateCamera({
+                heading: this._getRotationAngle(this.state.prevUserPosition, this.state.userPosition),
+                center: this.state.userPosition,
+                pitch: 80,
+                zoom: 19
+            })
+        }
+        else {
+            this.setState({center: true});
+            this.map.animateToRegion(this.state.userPosition)
+        }
     }
 
     _picReturned = async (data) => {
@@ -88,11 +107,29 @@ import ConnectionBar from 'src/components/ConnectionBar'
         )
     };
 
+    _onChangePeriodTime = (value) => {
+        this.setState({period_of_time: value}, () => pinStore.getMarkers(value))
+    };
+
+    dropdownItems = [
+        {label: "1 minute", value: 1},
+        {label: "3 minute", value: 3},
+        {label: "5 minute", value: 5},
+        {label: "10 minute", value: 10},
+        {label: "30 minute", value: 30},
+        {label: "60 minute", value: 60},
+        {label: "120 minute", value: 120},
+        {label: "1 day", value: 1440},
+        {label: "7 days", value: 10080},
+        {label: "14 days", value: 20160},
+        {label: "1 month", value: 43200},
+
+    ];
 
 
     componentDidMount() {
         setTimeout(() => this.setState({loading: false}), 400);
-        this.timer = setInterval(() => pinStore.getMarkers(), 5000)
+        this.timer = setInterval(() => pinStore.getMarkers(this.state.period_of_time), 5000)
     }
 
 
@@ -121,7 +158,7 @@ import ConnectionBar from 'src/components/ConnectionBar'
                             initialRegion={this.state.userPosition}
                             onUserLocationChange={(event) => this._userLocationChange({
                                 latitude: event.nativeEvent.coordinate.latitude,
-                                longitude: event.nativeEvent.coordinate.longitude
+                                longitude: event.nativeEvent.coordinate.longitude,
                             })}
                             userLocationAnnotationTitle={"You"}
                             showsUserLocation={true}
@@ -201,11 +238,19 @@ import ConnectionBar from 'src/components/ConnectionBar'
                         }}
                     >
 
-                        <DialogContent style={{flex: 0.7, minWidth: '90%'}}>
+                        <DialogContent
+                            style={{flex: 0.7, minWidth: '90%'}}
+                        >
+                            <Content style={{marginTop: 20}}>
+                                <ButtonWithData onValueChange={(value) => this._onChangePeriodTime(value)}
+                                                selected={this.state.period_of_time}
+                                                description={'Show markers from last:'} items={this.dropdownItems}/>
+                            </Content>
                             <View style={global.container}>
                                 <Text> Informations: </Text>
-                                <Text>Photos taken: {cameraStore.counter}</Text>
-                                <Text>URI: {cameraStore.statistics.uri}</Text>
+                                <Text> Markers on map: {pinStore.receivedMarkers.length}</Text>
+                                <Text> Ask Markers on map: {pinStore.askMarkers.length}</Text>
+                                <Text> Photos taken: {cameraStore.counter}</Text>
                             </View>
                         </DialogContent>
                     </Dialog>
@@ -214,14 +259,12 @@ import ConnectionBar from 'src/components/ConnectionBar'
                         direction={'up'}
                         style={[global.button, {bottom: 65}]}
                         position="bottomRight"
-                        onPress={() => this._handleCenter()}
+                        onPress={() => this._handleCenter(this.state.center)}
                     >
                         <Icon
-                            name="md-locate"
+                            name={this.state.center ? "md-locate" : "md-navigate"}
                             type="Ionicons"
-                            style={{
-                                color: "white",
-                            }}
+                            style={this.state.center ? {color: "white"} : {color: 'red'}}
                         />
                     </Fab>
                     <Fab

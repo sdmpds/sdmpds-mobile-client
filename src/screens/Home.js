@@ -5,7 +5,7 @@ import {Button, Container, Icon, Input, Item, Label, View} from 'native-base'
 import geolocationStore from "../stores/GeolocationStore";
 import DeviceInfo from "react-native-device-info";
 import userStore from "../stores/UserStore";
-import wallpaper from 'src/images/wallpaper.jpg'
+import wallpaper from 'src/images/wallpaper5.jpg'
 import faker from 'faker'
 import Text from 'src/components/Text'
 
@@ -43,11 +43,11 @@ export default class Home extends Component {
 
 
         return (
-            <Container>
+            <Container style={{backgroundColor:'black'}}>
                 <StatusBar hidden/>
                 <ImageBackground
                     source={wallpaper}
-                    style={{width: '100%', height: '100%'}}
+                    style={{width: '100%', height: '100%', right: 0}}
                     resizeMode='cover'
                 >
                     <View style={[global.container, {flex: 0.5}]}>
